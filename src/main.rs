@@ -1,8 +1,8 @@
 extern crate cast;
 extern crate rand;
 
-use std::collections::BinaryHeap;
 use std::cmp;
+use std::collections::BinaryHeap;
 use std::fmt;
 
 use cast::f32;
@@ -118,7 +118,7 @@ fn push_adjacents(onto: &mut Vec<(usize, usize)>, x: usize, y: usize) {
     }
 }
 
-fn step(board: Board) -> impl Iterator<Item=(Score, Board)> {
+fn step(board: Board) -> impl Iterator<Item = (Score, Board)> {
     let marked = board.mark();
     let init_score = marked.marked_score();
     (0..COLOURS)
@@ -170,8 +170,12 @@ fn walk(init: Board) {
         board: init,
     });
 
-    while let Some(State { score: _, moves, board }) = todo.pop() {
-
+    while let Some(State {
+        score: _,
+        moves,
+        board,
+    }) = todo.pop()
+    {
         if moves.len() + board.remaining_colours() > best_moves {
             continue;
         }
@@ -225,13 +229,18 @@ impl fmt::Debug for Board {
 }
 
 fn main() {
-//    let init = Board::random();
+    //    let init = Board::random();
     let init = Board {
-        cells: [0, 0, 1, 1, 1, 0, 2, 5, 0, 2, 2, 4, 1, 5, 1, 1, 4, 1, 1, 5, 5, 5, 5, 5, 5, 3, 3, 1, 0, 3, 0, 1, 4, 5, 1, 0, 2, 1, 1, 0, 2, 2, 5, 0, 0, 4, 4, 4, 1, 0, 3, 5, 4, 4, 1, 3, 0, 4, 2, 1, 5, 0, 1, 2, 3, 2, 3, 2, 2, 3, 2, 3, 5, 2, 4, 0, 4, 4, 2, 1, 4, 0, 4, 1, 5, 5, 0, 4, 3, 5, 5, 0, 5, 5, 2, 0, 0, 2, 4, 5, 0, 5, 5, 4, 4, 3, 3, 5, 0, 5, 4, 0, 4, 3, 4, 2, 3, 0, 4, 2, 2, 5, 5, 1, 4, 2, 4, 1, 0, 1, 0, 4, 2, 1, 1, 2, 0, 1, 4, 5, 1, 0, 4, 2],
+        cells: [
+            0, 0, 1, 1, 1, 0, 2, 5, 0, 2, 2, 4, 1, 5, 1, 1, 4, 1, 1, 5, 5, 5, 5, 5, 5, 3, 3, 1, 0,
+            3, 0, 1, 4, 5, 1, 0, 2, 1, 1, 0, 2, 2, 5, 0, 0, 4, 4, 4, 1, 0, 3, 5, 4, 4, 1, 3, 0, 4,
+            2, 1, 5, 0, 1, 2, 3, 2, 3, 2, 2, 3, 2, 3, 5, 2, 4, 0, 4, 4, 2, 1, 4, 0, 4, 1, 5, 5, 0,
+            4, 3, 5, 5, 0, 5, 5, 2, 0, 0, 2, 4, 5, 0, 5, 5, 4, 4, 3, 3, 5, 0, 5, 4, 0, 4, 3, 4, 2,
+            3, 0, 4, 2, 2, 5, 5, 1, 4, 2, 4, 1, 0, 1, 0, 4, 2, 1, 1, 2, 0, 1, 4, 5, 1, 0, 4, 2,
+        ],
     };
 
     println!("{:?}", init.cells.iter().cloned().collect::<Vec<Colour>>());
     println!("{:?}", init);
     walk(init);
 }
-
