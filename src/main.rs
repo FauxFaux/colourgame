@@ -53,7 +53,7 @@ impl Board {
     fn mark(mut self) -> Board {
         let src = self.get(0, 0);
 
-        let mut todo = Vec::with_capacity(40);
+        let mut todo = Vec::with_capacity(80);
         push_adjacents(&mut todo, 0, 0);
 
         while let Some((x, y)) = todo.pop() {
@@ -162,7 +162,7 @@ impl cmp::Ord for State {
 
 fn walk(init: Board) {
     let mut best_moves = MAX_MOVES;
-    let mut todo = BinaryHeap::with_capacity(1000);
+    let mut todo = BinaryHeap::with_capacity(10_000);
 
     todo.push(State {
         score: 0.,
