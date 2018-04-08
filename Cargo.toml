@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Chris West (Faux) <git@goeswhere.com>"]
 
 [dependencies]
-cast = "0.2"
+num-traits = "0.2"
 rand = "0.4"
 
 [profile.release]

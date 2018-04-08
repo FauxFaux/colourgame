@@ -1,14 +1,15 @@
-extern crate cast;
+extern crate num_traits;
 extern crate rand;
 
 use std::cmp;
 use std::collections::BinaryHeap;
 use std::fmt;
+use std::ops;
 
-use cast::f32;
+use num_traits::Zero;
 use rand::Rng;
 
-const MAX_MOVES: usize = 63;
+const MAX_MOVES: usize = 37;
 const SIZE: usize = 20;
 const COLOURS: Colour = 6;
 const MARKER: Colour = Colour::max_value();
@@ -20,6 +21,12 @@ type Cells = [Colour; SIZE * SIZE];
 #[derive(Copy, Clone)]
 struct Board {
     cells: Cells,
+}
+
+#[derive(Copy, Clone)]
+struct TinyVec<T> {
+    elements: [T; MAX_MOVES],
+    len: usize,
 }
 
 impl Board {
@@ -134,9 +141,10 @@ fn step(board: Board) -> impl Iterator<Item = (Score, Board)> {
         })
 }
 
+#[derive(Copy, Clone)]
 struct State {
     score: Score,
-    moves: Vec<Colour>,
+    moves: TinyVec<Colour>,
     board: Board,
 }
 
@@ -166,7 +174,7 @@ fn walk(init: Board) {
 
     todo.push(State {
         score: 0,
-        moves: Vec::new(),
+        moves: TinyVec::new(),
         board: init,
     });
 
@@ -225,6 +233,32 @@ impl fmt::Debug for Board {
             writeln!(f)?;
         }
         Ok(())
+    }
+}
+
+impl<T: Copy + Zero> TinyVec<T> {
+    fn new() -> TinyVec<T> {
+        TinyVec {
+            elements: [T::zero(); MAX_MOVES],
+            len: 0,
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.len
+    }
+
+    fn push(&mut self, element: T) {
+        self.elements[self.len] = element;
+        self.len += 1;
+    }
+}
+
+impl<T> ops::Deref for TinyVec<T> {
+    type Target = [T];
+
+    fn deref(&self) -> &[T] {
+        &self.elements[0..self.len]
     }
 }
 
