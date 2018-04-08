@@ -1,3 +1,4 @@
+extern crate cast;
 extern crate num_traits;
 extern crate rand;
 
@@ -7,6 +8,7 @@ use std::fmt;
 use std::mem;
 use std::ops;
 
+use cast::usize;
 use num_traits::Zero;
 use rand::Rng;
 
@@ -36,7 +38,7 @@ const COVERED_BLOCK_BITS: usize = mem::size_of::<Block>() * 8;
 
 // TODO: lazy maths, may overshoot
 const COVERED_STORAGE: usize = (SIZE * SIZE) / COVERED_BLOCK_BITS + 1;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 struct Covered {
     inner: [Block; COVERED_STORAGE],
 }
@@ -73,41 +75,12 @@ impl Board {
         self.cells[coord(x, y)] = val;
     }
 
-    fn mark(mut self) -> Board {
-        let src = self.get(0, 0);
-
-        let mut todo = Vec::with_capacity(80);
-        push_adjacents(&mut todo, 0, 0);
-
-        while let Some((x, y)) = todo.pop() {
-            if self.get(x, y) != src {
+    fn remaining_colours(&self, mask: &Covered) -> usize {
+        let mut seen = [false; COLOURS as usize];
+        for (pos, &cell) in self.cells.into_iter().enumerate() {
+            if mask.get_raw(pos) {
                 continue;
             }
-            push_adjacents(&mut todo, x, y);
-            self.set(x, y, MARKER);
-        }
-
-        self
-    }
-
-    fn marked_replace(mut self, target: Colour) -> Board {
-        self.cells
-            .iter_mut()
-            .filter(|&&mut cell| MARKER == cell)
-            .for_each(|cell| *cell = target);
-        self
-    }
-
-    fn marked_score(&self) -> usize {
-        self.cells
-            .into_iter()
-            .filter(|&&cell| MARKER == cell)
-            .count()
-    }
-
-    fn remaining_colours(&self) -> usize {
-        let mut seen = [false; COLOURS as usize];
-        for &cell in self.cells.into_iter() {
             seen[usize::from(cell)] = true;
         }
 
@@ -152,6 +125,10 @@ impl Covered {
         let mask = 1 << bit;
         self.inner[block] |= mask;
     }
+
+    fn score(&self) -> Score {
+        self.inner.iter().map(|x| usize(x.count_ones())).sum()
+    }
 }
 
 fn expand_coverage(board: &Board, coverage: &Covered, colour: Colour) -> Covered {
@@ -187,24 +164,6 @@ fn coord(x: usize, y: usize) -> usize {
     x + SIZE * y
 }
 
-fn push_adjacents(onto: &mut Vec<(usize, usize)>, x: usize, y: usize) {
-    if x > 0 {
-        onto.push((x - 1, y));
-    }
-
-    if y > 0 {
-        onto.push((x, y - 1))
-    }
-
-    if x < SIZE - 1 {
-        onto.push((x + 1, y));
-    }
-
-    if y < SIZE - 1 {
-        onto.push((x, y + 1));
-    }
-}
-
 fn push_adjacents_raw(onto: &mut Vec<usize>, pos: usize) {
     let x = pos % SIZE;
     let y = pos / SIZE;
@@ -226,16 +185,17 @@ fn push_adjacents_raw(onto: &mut Vec<usize>, pos: usize) {
     }
 }
 
-fn step(board: Board) -> impl Iterator<Item = (Score, Board)> {
-    let marked = board.mark();
-    let init_score = marked.marked_score();
+fn step<'b>(
+    board: &'b Board,
+    mask: &'b Covered,
+    skip_colour: Colour,
+) -> impl Iterator<Item = (Colour, Covered)> + 'b {
     (0..COLOURS)
-        .filter(move |&colour| colour != board.get(0, 0))
+        .filter(move |&colour| colour != skip_colour)
         .filter_map(move |colour| {
-            let cand = marked.marked_replace(colour);
-            let new_score = cand.mark().marked_score();
-            if new_score > init_score {
-                Some((new_score, cand))
+            let cand = expand_coverage(board, mask, colour);
+            if cand != *mask {
+                Some((colour, cand))
             } else {
                 None
             }
@@ -246,7 +206,7 @@ fn step(board: Board) -> impl Iterator<Item = (Score, Board)> {
 struct State {
     score: Score,
     moves: TinyVec<Colour>,
-    board: Board,
+    mask: Covered,
 }
 
 impl cmp::Eq for State {}
@@ -269,29 +229,35 @@ impl cmp::Ord for State {
     }
 }
 
-fn walk(init: Board) {
+fn walk(board: &Board) {
     let mut best_moves = MAX_MOVES;
     let mut todo = BinaryHeap::with_capacity(10_000);
 
+    let root_colour = board.get(0, 0);
+    let mask = expand_coverage(&board, &Covered::new(), root_colour);
+    let mut moves = TinyVec::new();
+    moves.push(root_colour);
+
     todo.push(State {
         score: 0,
-        moves: TinyVec::new(),
-        board: init,
+        moves,
+        mask,
     });
 
     while let Some(State {
         score: _,
         moves,
-        board,
+        mask,
     }) = todo.pop()
     {
-        if moves.len() + board.remaining_colours() > best_moves {
+        if moves.len() + board.remaining_colours(&mask) >= best_moves {
             continue;
         }
 
-        for (score, item) in step(board) {
+        for (colour, mask) in step(&board, &mask, moves.get(moves.len() - 1)) {
             let mut solution = moves.clone();
-            solution.push(item.get(0, 0));
+            solution.push(colour);
+            let score = mask.score();
 
             if score == SIZE * SIZE {
                 best_moves = solution.len();
@@ -302,7 +268,7 @@ fn walk(init: Board) {
             todo.push(State {
                 score,
                 moves: solution,
-                board: item,
+                mask,
             })
         }
     }
@@ -370,6 +336,10 @@ impl<T: Copy + Zero> TinyVec<T> {
         self.len
     }
 
+    fn get(&self, idx: usize) -> T {
+        self.elements[idx]
+    }
+
     fn push(&mut self, element: T) {
         self.elements[self.len] = element;
         self.len += 1;
@@ -401,17 +371,7 @@ fn main() {
         println!("{}: {}", colour, symbol(colour));
     }
 
-    let coverage = Covered::new();
-    let ex = expand_coverage(&init, &coverage, init.get(0, 0));
-    println!("{:?}", ex);
-    let ex = expand_coverage(&init, &ex, 1);
-    println!("{:?}", ex);
-    let ex = expand_coverage(&init, &ex, 0);
-    println!("{:?}", ex);
-    let ex = expand_coverage(&init, &ex, 1);
-    println!("{:?}", ex);
-
     println!("{:?}", init.cells.iter().cloned().collect::<Vec<Colour>>());
     println!("{:?}", init);
-    walk(init);
+    walk(&init);
 }
