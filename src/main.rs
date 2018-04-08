@@ -8,8 +8,8 @@ use std::fmt;
 use cast::f32;
 use rand::Rng;
 
-const MAX_MOVES: usize = 23;
-const SIZE: usize = 12;
+const MAX_MOVES: usize = 63;
+const SIZE: usize = 20;
 const COLOURS: Colour = 6;
 const MARKER: Colour = Colour::max_value();
 
@@ -135,7 +135,7 @@ fn step(board: Board) -> impl Iterator<Item = (Score, Board)> {
 }
 
 struct State {
-    score: f32,
+    score: Score,
     moves: Vec<Colour>,
     board: Board,
 }
@@ -156,7 +156,7 @@ impl cmp::PartialOrd for State {
 
 impl cmp::Ord for State {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.score.partial_cmp(&other.score).unwrap()
+        self.score.cmp(&other.score)
     }
 }
 
@@ -165,7 +165,7 @@ fn walk(init: Board) {
     let mut todo = BinaryHeap::with_capacity(10_000);
 
     todo.push(State {
-        score: 0.,
+        score: 0,
         moves: Vec::new(),
         board: init,
     });
@@ -191,7 +191,7 @@ fn walk(init: Board) {
             }
 
             todo.push(State {
-                score: f32(score) / f32(solution.len()),
+                score,
                 moves: solution,
                 board: item,
             })
@@ -229,7 +229,8 @@ impl fmt::Debug for Board {
 }
 
 fn main() {
-    //    let init = Board::random();
+    let init = Board::random();
+    #[cfg(never)]
     let init = Board {
         cells: [
             0, 0, 1, 1, 1, 0, 2, 5, 0, 2, 2, 4, 1, 5, 1, 1, 4, 1, 1, 5, 5, 5, 5, 5, 5, 3, 3, 1, 0,
