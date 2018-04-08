@@ -12,8 +12,8 @@ use cast::usize;
 use num_traits::Zero;
 use rand::Rng;
 
-const MAX_MOVES: usize = 23;
-const SIZE: usize = 12;
+const MAX_MOVES: usize = 4 * SIZE;
+const SIZE: usize = 63;
 const COLOURS: Colour = 6;
 const MARKER: Colour = Colour::max_value();
 
@@ -39,9 +39,21 @@ const COVERED_BLOCK_BITS: usize = mem::size_of::<Block>() * 8;
 // TODO: lazy maths, may overshoot
 const COVERED_STORAGE: usize = (SIZE * SIZE) / COVERED_BLOCK_BITS + 1;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone)]
 struct Covered {
     inner: [Block; COVERED_STORAGE],
+}
+
+impl PartialEq for Covered {
+    fn eq(&self, other: &Covered) -> bool {
+        for (i, &val) in self.inner.iter().enumerate() {
+            if val != other.inner[i] {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
 
 impl Board {
@@ -376,8 +388,8 @@ impl<T> ops::Deref for TinyVec<T> {
 }
 
 fn main() {
-    #[cfg(never)]
     let init = Board::random();
+    #[cfg(never)]
     let init = Board {
         cells: [
             0, 0, 1, 1, 1, 0, 2, 5, 0, 2, 2, 4, 1, 5, 1, 1, 4, 1, 1, 5, 5, 5, 5, 5, 5, 3, 3, 1, 0,
