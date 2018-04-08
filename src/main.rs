@@ -4,13 +4,14 @@ extern crate rand;
 use std::cmp;
 use std::collections::BinaryHeap;
 use std::fmt;
+use std::mem;
 use std::ops;
 
 use num_traits::Zero;
 use rand::Rng;
 
-const MAX_MOVES: usize = 37;
-const SIZE: usize = 20;
+const MAX_MOVES: usize = 23;
+const SIZE: usize = 12;
 const COLOURS: Colour = 6;
 const MARKER: Colour = Colour::max_value();
 
@@ -27,6 +28,17 @@ struct Board {
 struct TinyVec<T> {
     elements: [T; MAX_MOVES],
     len: usize,
+}
+
+type Block = usize;
+
+const COVERED_BLOCK_BITS: usize = mem::size_of::<Block>() * 8;
+
+// TODO: lazy maths, may overshoot
+const COVERED_STORAGE: usize = (SIZE * SIZE) / COVERED_BLOCK_BITS + 1;
+#[derive(Copy, Clone)]
+struct Covered {
+    inner: [Block; COVERED_STORAGE],
 }
 
 impl Board {
@@ -50,11 +62,15 @@ impl Board {
     }
 
     fn get(&self, x: usize, y: usize) -> Colour {
-        self.cells[y + SIZE * x]
+        self.cells[coord(x, y)]
+    }
+
+    fn get_raw(&self, pos: usize) -> Colour {
+        self.cells[pos]
     }
 
     fn set(&mut self, x: usize, y: usize, val: Colour) {
-        self.cells[y + SIZE * x] = val;
+        self.cells[coord(x, y)] = val;
     }
 
     fn mark(mut self) -> Board {
@@ -107,6 +123,70 @@ impl Board {
     }
 }
 
+impl Covered {
+    fn new() -> Covered {
+        let inner = [0; COVERED_STORAGE];
+        let mut covered = Covered { inner };
+        covered.set(0, 0);
+        covered
+    }
+
+    fn get(&self, x: usize, y: usize) -> bool {
+        self.get_raw(coord(x, y))
+    }
+
+    fn get_raw(&self, pos: usize) -> bool {
+        let block = pos / COVERED_BLOCK_BITS;
+        let bit = pos % COVERED_BLOCK_BITS;
+        let mask = 1 << bit;
+        self.inner[block] & mask == mask
+    }
+
+    fn set(&mut self, x: usize, y: usize) {
+        self.set_raw(coord(x, y));
+    }
+
+    fn set_raw(&mut self, pos: usize) {
+        let block = pos / COVERED_BLOCK_BITS;
+        let bit = pos % COVERED_BLOCK_BITS;
+        let mask = 1 << bit;
+        self.inner[block] |= mask;
+    }
+}
+
+fn expand_coverage(board: &Board, coverage: &Covered, colour: Colour) -> Covered {
+    let mut new = *coverage;
+    fill2(board, &mut new, colour);
+    new
+}
+
+fn fill2(board: &Board, coverage: &mut Covered, colour: Colour) {
+    let mut todo = Vec::with_capacity(40);
+    for pos in 0..(SIZE * SIZE) {
+        if !coverage.get_raw(pos) {
+            continue;
+        }
+        push_adjacents_raw(&mut todo, pos);
+    }
+
+    todo.sort_unstable();
+    todo.dedup();
+
+    while let Some(pos) = todo.pop() {
+        if coverage.get_raw(pos) || board.get_raw(pos) != colour {
+            continue;
+        }
+
+        coverage.set_raw(pos);
+
+        push_adjacents_raw(&mut todo, pos);
+    }
+}
+
+fn coord(x: usize, y: usize) -> usize {
+    x + SIZE * y
+}
+
 fn push_adjacents(onto: &mut Vec<(usize, usize)>, x: usize, y: usize) {
     if x > 0 {
         onto.push((x - 1, y));
@@ -122,6 +202,27 @@ fn push_adjacents(onto: &mut Vec<(usize, usize)>, x: usize, y: usize) {
 
     if y < SIZE - 1 {
         onto.push((x, y + 1));
+    }
+}
+
+fn push_adjacents_raw(onto: &mut Vec<usize>, pos: usize) {
+    let x = pos % SIZE;
+    let y = pos / SIZE;
+
+    if x > 0 {
+        onto.push(coord(x - 1, y));
+    }
+
+    if y > 0 {
+        onto.push(coord(x, y - 1))
+    }
+
+    if x < SIZE - 1 {
+        onto.push(coord(x + 1, y));
+    }
+
+    if y < SIZE - 1 {
+        onto.push(coord(x, y + 1));
     }
 }
 
@@ -245,6 +346,18 @@ impl fmt::Debug for Board {
     }
 }
 
+impl fmt::Debug for Covered {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for y in 0..SIZE {
+            for x in 0..SIZE {
+                write!(f, "{}", if self.get(x, y) { 'X' } else { '.' })?;
+            }
+            writeln!(f)?;
+        }
+        Ok(())
+    }
+}
+
 impl<T: Copy + Zero> TinyVec<T> {
     fn new() -> TinyVec<T> {
         TinyVec {
@@ -272,8 +385,8 @@ impl<T> ops::Deref for TinyVec<T> {
 }
 
 fn main() {
-    let init = Board::random();
     #[cfg(never)]
+    let init = Board::random();
     let init = Board {
         cells: [
             0, 0, 1, 1, 1, 0, 2, 5, 0, 2, 2, 4, 1, 5, 1, 1, 4, 1, 1, 5, 5, 5, 5, 5, 5, 3, 3, 1, 0,
@@ -283,6 +396,20 @@ fn main() {
             3, 0, 4, 2, 2, 5, 5, 1, 4, 2, 4, 1, 0, 1, 0, 4, 2, 1, 1, 2, 0, 1, 4, 5, 1, 0, 4, 2,
         ],
     };
+
+    for colour in 0..COLOURS {
+        println!("{}: {}", colour, symbol(colour));
+    }
+
+    let coverage = Covered::new();
+    let ex = expand_coverage(&init, &coverage, init.get(0, 0));
+    println!("{:?}", ex);
+    let ex = expand_coverage(&init, &ex, 1);
+    println!("{:?}", ex);
+    let ex = expand_coverage(&init, &ex, 0);
+    println!("{:?}", ex);
+    let ex = expand_coverage(&init, &ex, 1);
+    println!("{:?}", ex);
 
     println!("{:?}", init.cells.iter().cloned().collect::<Vec<Colour>>());
     println!("{:?}", init);
