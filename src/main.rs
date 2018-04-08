@@ -208,27 +208,36 @@ fn walk(init: Board) {
 }
 
 fn complete(remaining: usize, solution: &[Colour]) {
-    println!("{}: {:?} ({})", solution.len(), solution, remaining);
+    println!(
+        "{}: {} ({})",
+        solution.len(),
+        solution
+            .into_iter()
+            .cloned()
+            .map(symbol)
+            .collect::<String>(),
+        remaining
+    );
+}
+
+fn symbol(colour: Colour) -> char {
+    match colour {
+        0 => '-',
+        1 => '#',
+        2 => 'N',
+        3 => 'o',
+        4 => 'T',
+        5 => 'v',
+        MARKER => ' ',
+        _ => unimplemented!(),
+    }
 }
 
 impl fmt::Debug for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for y in 0..SIZE {
             for x in 0..SIZE {
-                write!(
-                    f,
-                    "{}",
-                    match self.get(x, y) {
-                        0 => '-',
-                        1 => '#',
-                        2 => 'N',
-                        3 => 'o',
-                        4 => 'T',
-                        5 => 'v',
-                        MARKER => ' ',
-                        _ => unimplemented!(),
-                    }
-                )?;
+                write!(f, "{}", symbol(self.get(x, y)))?;
             }
             writeln!(f)?;
         }
