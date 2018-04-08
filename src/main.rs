@@ -38,6 +38,7 @@ const COVERED_BLOCK_BITS: usize = mem::size_of::<Block>() * 8;
 
 // TODO: lazy maths, may overshoot
 const COVERED_STORAGE: usize = (SIZE * SIZE) / COVERED_BLOCK_BITS + 1;
+
 #[derive(Copy, Clone, PartialEq, Eq)]
 struct Covered {
     inner: [Block; COVERED_STORAGE],
@@ -143,20 +144,25 @@ fn fill2(board: &Board, coverage: &mut Covered, colour: Colour) {
         if !coverage.get_raw(pos) {
             continue;
         }
-        push_adjacents_raw(&mut todo, pos);
+        push_adjacents_raw(&mut todo, pos, |pos| {
+            coverage.get_raw(pos) || board.get_raw(pos) != colour
+        });
     }
 
     todo.sort_unstable();
     todo.dedup();
 
     while let Some(pos) = todo.pop() {
-        if coverage.get_raw(pos) || board.get_raw(pos) != colour {
-            continue;
+        {
+            let skip = |pos| coverage.get_raw(pos) || board.get_raw(pos) != colour;
+            if skip(pos) {
+                continue;
+            }
+
+            push_adjacents_raw(&mut todo, pos, skip);
         }
 
         coverage.set_raw(pos);
-
-        push_adjacents_raw(&mut todo, pos);
     }
 }
 
@@ -164,24 +170,39 @@ fn coord(x: usize, y: usize) -> usize {
     x + SIZE * y
 }
 
-fn push_adjacents_raw(onto: &mut Vec<usize>, pos: usize) {
+fn push_adjacents_raw<F>(onto: &mut Vec<usize>, pos: usize, skip: F)
+where
+    F: Fn(usize) -> bool,
+{
     let x = pos % SIZE;
     let y = pos / SIZE;
 
     if x > 0 {
-        onto.push(coord(x - 1, y));
+        let pos = coord(x - 1, y);
+        if !skip(pos) {
+            onto.push(pos);
+        }
     }
 
     if y > 0 {
-        onto.push(coord(x, y - 1))
+        let pos = coord(x, y - 1);
+        if !skip(pos) {
+            onto.push(pos)
+        }
     }
 
     if x < SIZE - 1 {
-        onto.push(coord(x + 1, y));
+        let pos = coord(x + 1, y);
+        if !skip(pos) {
+            onto.push(pos);
+        }
     }
 
     if y < SIZE - 1 {
-        onto.push(coord(x, y + 1));
+        let pos = coord(x, y + 1);
+        if !skip(pos) {
+            onto.push(pos);
+        }
     }
 }
 
